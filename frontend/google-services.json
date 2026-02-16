@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "872196911461",
+    "project_id": "government-inspection-app",
+    "storage_bucket": "government-inspection-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:872196911461:android:181e91ec8e0d3f45cef18c",
+        "android_client_info": {
+          "package_name": "com.abinayasri_j.governmentinspectionapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGGajkZXsdXNimWNnkPboKcxYB7mIhZTc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
