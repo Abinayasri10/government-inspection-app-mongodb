@@ -127,8 +127,9 @@ const EducationDashboard = ({ userData, navigation, route }) => {
 
   const downloadReport = async (report) => {
     try {
-      console.log("Starting download for report:", report.id)
-      setDownloadingReport(report.id)
+      const reportId = report._id || report.id;
+      console.log("Starting download for report:", reportId)
+      setDownloadingReport(reportId)
 
       // Generate PDF from the inspection data
       const pdfResult = await PDFGenerator.generatePDF(report)
@@ -207,8 +208,8 @@ const EducationDashboard = ({ userData, navigation, route }) => {
           <Card.Content>
             <View style={styles.cardHeader}>
               <View style={styles.schoolInfo}>
-                <Text style={styles.schoolName}>{assignment.locationName}</Text>
-                <Text style={styles.schoolAddress}>{assignment.address}</Text>
+                <Text style={styles.schoolName}>{assignment.schoolId?.name || "Unknown School"}</Text>
+                <Text style={styles.schoolAddress}>{assignment.schoolId?.address || "Address not available"}</Text>
               </View>
               <View
                 style={[
@@ -306,14 +307,14 @@ const EducationDashboard = ({ userData, navigation, route }) => {
         <>
           <Text style={styles.sectionTitle}>📄 Completed Reports</Text>
           {completedReports.slice(0, 5).map((report) => (
-            <Card key={report.id} style={styles.reportCard}>
+            <Card key={report._id || report.id} style={styles.reportCard}>
               <Card.Content>
                 <View style={styles.reportHeader}>
                   <View style={styles.reportTitleContainer}>
                     <Text style={styles.reportTitle}>{report.schoolName}</Text>
                     <Text style={styles.reportDate}>{new Date(report.submittedAt).toLocaleDateString("en-IN")}</Text>
                   </View>
-                  <Text style={styles.reportId}>ID: {report.id ? report.id.substring(0, 8) : 'N/A'}</Text>
+                  <Text style={styles.reportId}>ID: {(report._id || report.id) ? (report._id || report.id).substring(0, 8) : 'N/A'}</Text>
                 </View>
 
                 <View style={styles.reportDetails}>
@@ -332,11 +333,11 @@ const EducationDashboard = ({ userData, navigation, route }) => {
                     <Text style={styles.statusText}>SUBMITTED TO DEO</Text>
                   </View>
                   <TouchableOpacity
-                    style={[styles.downloadButton, downloadingReport === report.id && styles.downloadingButton]}
+                    style={[styles.downloadButton, downloadingReport === (report._id || report.id) && styles.downloadingButton]}
                     onPress={() => downloadReport(report)}
-                    disabled={downloadingReport === report.id}
+                    disabled={downloadingReport === (report._id || report.id)}
                   >
-                    {downloadingReport === report.id ? (
+                    {downloadingReport === (report._id || report.id) ? (
                       <>
                         <Ionicons name="hourglass-outline" size={16} color={COLORS.primary} />
                         <Text style={styles.downloadText}>Downloading...</Text>
@@ -440,8 +441,9 @@ const styles = StyleSheet.create({
   assignmentCard: {
     marginHorizontal: 20,
     marginBottom: 15,
-    borderRadius: 12,
-    elevation: 3,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: "row",
@@ -528,8 +530,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 12,
+    backgroundColor: COLORS.primary,
   },
   primaryButton: {
     backgroundColor: COLORS.accent,
@@ -559,9 +562,10 @@ const styles = StyleSheet.create({
   },
   reportCard: {
     marginHorizontal: 20,
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
+    marginBottom: 15,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    elevation: 4,
   },
   reportHeader: {
     flexDirection: "row",

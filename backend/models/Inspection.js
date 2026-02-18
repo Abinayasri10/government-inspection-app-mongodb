@@ -47,6 +47,14 @@ const inspectionSchema = new mongoose.Schema({
     signature: String, // Base64 or URL
     signatureTimestamp: Date,
 
+    // AI Analysis Result
+    aiAnalysis: {
+        flag: { type: String, enum: ['Red', 'Yellow', 'Green'], default: 'Green' },
+        issues: [String],
+        summary: [String],
+        verifiedAt: { type: Date }
+    },
+
     // Status & Meta
     status: { type: String, default: 'submitted' }, // submitted, reviewed, approved, rejected
     forwardedTo: String, // e.g. 'deo', 'ceo'

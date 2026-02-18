@@ -36,9 +36,15 @@ const ReportsScreen = ({ navigation }) => {
     try {
       setLoading(true);
       // Backend expects userId for filtering or checks token
-      // We pass userId as query param as per our routes
-      const userId = userProfile.uid || userProfile._id; // Handle both cases just to be safe
-      const response = await api.get(`/inspections?userId=${userId}`);
+      // We pass userId as query param as per our routes, unless admin
+      const userId = userProfile.uid || userProfile._id;
+
+      let endpoint = `/inspections`;
+      if (userProfile.role !== 'admin' && userId) {
+        endpoint += `?userId=${userId}`;
+      }
+
+      const response = await api.get(endpoint);
       setReports(response.data);
     } catch (error) {
       console.error('Error fetching reports:', error);
@@ -172,7 +178,7 @@ const ReportsScreen = ({ navigation }) => {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {reports.map((report) => (
-        <View key={report.id} style={styles.reportCard}>
+        <View key={report._id || report.id} style={styles.reportCard}>
           <View style={styles.reportHeader}>
             <View style={styles.reportInfo}>
               <Text style={styles.reportTitle}>{report.schoolName}</Text>

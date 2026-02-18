@@ -9,7 +9,7 @@ import PDFGenerator from "../services/PDFGenerator"
 
 const InspectionsListScreen = ({ navigation }) => {
     const { userProfile: userData } = useAuth()
-    const [activeTab, setActiveTab] = useState("assigned") // 'assigned' or 'completed'
+    const [activeTab, setActiveTab] = useState("assigned")
     const [assignments, setAssignments] = useState([])
     const [completedReports, setCompletedReports] = useState([])
     const [loading, setLoading] = useState(true)
@@ -19,24 +19,17 @@ const InspectionsListScreen = ({ navigation }) => {
     const fetchData = async () => {
         try {
             if (!userData) return
-
             const userId = userData.id || userData.uid || userData._id
             setLoading(true)
 
-            // Fetch pending assignments
-            const assignmentsResponse = await api.get(`/assignments?assignedTo=${userId}&department=education`)
-            const allAssignments = assignmentsResponse.data
+            const [assignmentsRes, reportsRes] = await Promise.all([
+                api.get(`/assignments?assignedTo=${userId}&department=education`),
+                api.get(`/inspections?userId=${userId}&department=education`)
+            ])
 
-            // Filter for active/pending assignments
-            const pending = allAssignments.filter(a => a.status !== "completed")
-            setAssignments(pending)
-
-            // Fetch completed inspections/reports
-            const reportsResponse = await api.get(`/inspections?userId=${userId}&department=education`)
-            setCompletedReports(reportsResponse.data)
-
+            setAssignments(assignmentsRes.data.filter(a => a.status !== "completed"))
+            setCompletedReports(reportsRes.data)
         } catch (error) {
-            console.error("Error fetching inspections:", error)
             Alert.alert("Error", "Failed to load inspections")
         } finally {
             setLoading(false)
@@ -44,141 +37,156 @@ const InspectionsListScreen = ({ navigation }) => {
         }
     }
 
-    useFocusEffect(
-        useCallback(() => {
-            fetchData()
-        }, [userData])
-    )
+    useFocusEffect(useCallback(() => { fetchData() }, [userData]))
 
     const onRefresh = () => {
         setRefreshing(true)
         fetchData()
     }
 
-    const handleStartInspection = (assignment) => {
-        if (!assignment.id && !assignment._id) {
-            Alert.alert("Error", "Invalid assignment ID")
-            return
-        }
-        navigation.navigate("InspectionForm", { assignmentData: assignment })
-    }
+    const renderAssignmentItem = ({ item }) => {
+        // EXACT MAPPING BASED ON YOUR LOG:
+        // The school details are inside the 'schoolId' object
+        const schoolName = item.schoolId?.name || "Unknown School";
+        const schoolAddress = item.schoolId?.address || "No address available";
+        const schoolType = item.schoolId?.schoolType || "";
 
-    const handleDownloadReport = async (report) => {
-        try {
-            console.log("Starting download for report:", report.id)
-            setDownloadingReport(report.id)
-
-            // Generate PDF from the inspection data
-            const pdfResult = await PDFGenerator.generatePDF(report)
-
-            if (pdfResult.success) {
-                console.log("PDF generated successfully:", pdfResult.uri)
-
-                // Automatically download to device
-                const downloadResult = await PDFGenerator.downloadPDF(pdfResult.uri, pdfResult.fileName)
-
-                if (downloadResult.success) {
-                    Alert.alert("Success", "Report downloaded successfully")
-                } else {
-                    throw new Error(downloadResult.error || "Failed to download PDF")
-                }
-            } else {
-                throw new Error(pdfResult.error || "Failed to generate PDF")
-            }
-        } catch (error) {
-            console.error("Error downloading report:", error)
-            Alert.alert("Download Error", `Failed to download report: ${error.message}`)
-        } finally {
-            setDownloadingReport(null)
-        }
-    }
-
-    const renderAssignmentItem = ({ item }) => (
-        <View style={styles.card}>
-            <View style={styles.cardHeader}>
-                <View>
-                    <Text style={styles.schoolName}>{item.locationName || item.schoolName}</Text>
-                    <Text style={styles.address}>{item.address}</Text>
+        return (
+            <View style={styles.card}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={{ flex: 1, paddingRight: 10 }}>
+                        <Text style={{ 
+                            fontSize: 18, 
+                            fontWeight: "bold", 
+                            color: "#000000", // Forced Black
+                            marginBottom: 4 
+                        }}>
+                            {schoolName}
+                        </Text>
+                        <Text style={{ 
+                            fontSize: 13, 
+                            color: "#555555", // Dark Gray
+                            lineHeight: 18 
+                        }}>
+                            {schoolAddress}
+                        </Text>
+                        {schoolType ? (
+                            <View style={{backgroundColor: '#E3F2FD', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, marginTop: 6}}>
+                                <Text style={{fontSize: 10, color: '#1976D2', fontWeight: 'bold'}}>{schoolType.toUpperCase()}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                    <View style={{ backgroundColor: '#F5F5F5', padding: 10, borderRadius: 12 }}>
+                        <Ionicons name="school" size={24} color={COLORS.primary || "#2196F3"} />
+                    </View>
                 </View>
-                <Ionicons name="school-outline" size={24} color={COLORS.primary} />
-            </View>
 
-            <View style={styles.cardDetails}>
-                <Text style={styles.detailText}>📅 Deadline: {new Date(item.deadline).toLocaleDateString()}</Text>
-                <Text style={styles.detailText}>
-                    🔥 Priority: <Text style={{ fontWeight: 'bold', color: item.priority === 'high' ? COLORS.error : COLORS.warning }}>{item.priority?.toUpperCase() || 'NORMAL'}</Text>
-                </Text>
-            </View>
+                <View style={{ height: 1, backgroundColor: '#F0F0F0', marginVertical: 15 }} />
 
-            <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => handleStartInspection(item)}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="calendar-outline" size={16} color="#666" />
+                        <Text style={{ fontSize: 13, color: '#444', marginLeft: 6 }}>
+                            Deadline: {item.deadline ? new Date(item.deadline).toLocaleDateString() : 'N/A'}
+                        </Text>
+                    </View>
+                    <View style={{ 
+                        backgroundColor: item.priority === 'high' ? '#FFEBEE' : '#FFF3E0', 
+                        paddingHorizontal: 8, 
+                        paddingVertical: 4, 
+                        borderRadius: 6 
+                    }}>
+                        <Text style={{ 
+                            fontSize: 11, 
+                            fontWeight: 'bold', 
+                            color: item.priority === 'high' ? '#C62828' : '#EF6C00' 
+                        }}>
+                            {item.priority?.toUpperCase()}
+                        </Text>
+                    </View>
+                </View>
+
+                <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={{ 
+                        backgroundColor: COLORS.primary || "#2196F3", 
+                        flexDirection: 'row', 
+                        justifyContent: 'center', 
+                        alignItems: 'center',
+                        padding: 14, 
+                        borderRadius: 10,
+                        elevation: 2
+                    }}
+                    onPress={() => navigation.navigate("InspectionForm", { assignmentData: item })}
+                >
+                    <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 15, marginRight: 8 }}>
+                        Start Inspection
+                    </Text>
+                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    const renderCompletedItem = ({ item }) => {
+        const schoolName = item.schoolId?.name || item.schoolName || "Completed Report";
+        return (
+            <TouchableOpacity 
+                style={styles.card} 
+                onPress={() => {
+                    setDownloadingReport(item._id);
+                    PDFGenerator.generatePDF(item).then(res => {
+                        if(res.success) PDFGenerator.downloadPDF(res.uri, res.fileName);
+                    }).finally(() => setDownloadingReport(null));
+                }}
             >
-                <Text style={styles.actionButtonText}>Start Inspection</Text>
-                <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
-            </TouchableOpacity>
-        </View>
-    )
-
-    const renderCompletedItem = ({ item }) => (
-        <TouchableOpacity style={styles.card} onPress={() => handleDownloadReport(item)} disabled={downloadingReport === item.id}>
-            <View style={styles.cardHeader}>
-                <View>
-                    <Text style={styles.schoolName}>{item.schoolName}</Text>
-                    <Text style={styles.address}>Completed on: {new Date(item.submittedAt).toLocaleDateString()}</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#000' }}>{schoolName}</Text>
+                        <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                            Submitted: {new Date(item.submittedAt || item.createdAt).toLocaleDateString()}
+                        </Text>
+                    </View>
+                    <Ionicons name="checkmark-circle" size={26} color="#4CAF50" />
                 </View>
-                <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-            </View>
-            <View style={styles.statusBadge}>
-                {downloadingReport === item.id ? (
-                    <Text style={styles.statusText}>DOWNLOADING...</Text>
-                ) : (
-                    <Text style={styles.statusText}>SUBMITTED (TAP TO DOWNLOAD)</Text>
-                )}
-            </View>
-        </TouchableOpacity>
-    )
+                <View style={{ marginTop: 12, backgroundColor: '#E8F5E9', padding: 8, borderRadius: 6, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 11, color: '#2E7D32', fontWeight: 'bold' }}>
+                        {downloadingReport === item._id ? "DOWNLOADING..." : "VIEW REPORT PDF"}
+                    </Text>
+                </View>
+            </TouchableOpacity>
+        )
+    }
 
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.paddingTitle}>My Inspections</Text>
+                <Text style={styles.headerTitle}>My Inspections</Text>
+                <Text style={styles.headerSub}>Active Assignments</Text>
             </View>
 
             <View style={styles.tabContainer}>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === "assigned" && styles.activeTab]}
-                    onPress={() => setActiveTab("assigned")}
-                >
-                    <Text style={[styles.tabText, activeTab === "assigned" && styles.activeTabText]}>
-                        Assigned ({assignments.length})
-                    </Text>
+                <TouchableOpacity style={[styles.tab, activeTab === "assigned" && styles.activeTab]} onPress={() => setActiveTab("assigned")}>
+                    <Text style={[styles.tabText, activeTab === "assigned" && styles.activeTabText]}>Assigned ({assignments.length})</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.tab, activeTab === "completed" && styles.activeTab]}
-                    onPress={() => setActiveTab("completed")}
-                >
-                    <Text style={[styles.tabText, activeTab === "completed" && styles.activeTabText]}>
-                        Completed ({completedReports.length})
-                    </Text>
+                <TouchableOpacity style={[styles.tab, activeTab === "completed" && styles.activeTab]} onPress={() => setActiveTab("completed")}>
+                    <Text style={[styles.tabText, activeTab === "completed" && styles.activeTabText]}>Completed ({completedReports.length})</Text>
                 </TouchableOpacity>
             </View>
 
             {loading ? (
-                <View style={styles.centerContainer}>
-                    <ActivityIndicator size="large" color={COLORS.primary} />
-                </View>
+                <View style={styles.center}><ActivityIndicator size="large" color="#2196F3" /></View>
             ) : (
                 <FlatList
                     data={activeTab === "assigned" ? assignments : completedReports}
                     renderItem={activeTab === "assigned" ? renderAssignmentItem : renderCompletedItem}
-                    keyExtractor={(item) => item.id || item._id}
-                    contentContainerStyle={styles.listContent}
+                    keyExtractor={(item) => item._id}
+                    contentContainerStyle={{ padding: 16 }}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                     ListEmptyComponent={
-                        <View style={styles.emptyState}>
-                            <Ionicons name="document-text-outline" size={50} color={COLORS.gray} />
-                            <Text style={styles.emptyText}>No {activeTab} inspections found</Text>
+                        <View style={{ alignItems: 'center', marginTop: 50 }}>
+                            <Ionicons name="document-text-outline" size={60} color="#CCC" />
+                            <Text style={{ color: '#999', marginTop: 10 }}>No inspections found</Text>
                         </View>
                     }
                 />
@@ -188,126 +196,17 @@ const InspectionsListScreen = ({ navigation }) => {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    header: {
-        backgroundColor: COLORS.primary,
-        padding: 20,
-        paddingTop: 50,
-    },
-    paddingTitle: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: COLORS.white,
-    },
-    tabContainer: {
-        flexDirection: "row",
-        backgroundColor: COLORS.white,
-        elevation: 2,
-    },
-    tab: {
-        flex: 1,
-        paddingVertical: 15,
-        alignItems: "center",
-        borderBottomWidth: 2,
-        borderBottomColor: "transparent",
-    },
-    activeTab: {
-        borderBottomColor: COLORS.primary,
-    },
-    tabText: {
-        fontSize: 16,
-        color: COLORS.gray,
-        fontWeight: "600",
-    },
-    activeTabText: {
-        color: COLORS.primary,
-    },
-    listContent: {
-        padding: 15,
-    },
-    card: {
-        backgroundColor: COLORS.white,
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 15,
-        elevation: 3,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    cardHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: 10,
-    },
-    schoolName: {
-        fontSize: 18,
-        fontWeight: "bold",
-        color: COLORS.text,
-        marginBottom: 5,
-    },
-    address: {
-        fontSize: 14,
-        color: COLORS.gray,
-        marginBottom: 8,
-    },
-    cardDetails: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginBottom: 15,
-        paddingBottom: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.lightGray,
-    },
-    detailText: {
-        fontSize: 14,
-        color: COLORS.text,
-    },
-    actionButton: {
-        backgroundColor: COLORS.primary,
-        flexDirection: "row",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 12,
-        borderRadius: 8,
-    },
-    actionButtonText: {
-        color: COLORS.white,
-        fontWeight: "bold",
-        marginRight: 8,
-        fontSize: 16,
-    },
-    statusBadge: {
-        backgroundColor: COLORS.success + "20",
-        paddingVertical: 5,
-        paddingHorizontal: 10,
-        borderRadius: 5,
-        alignSelf: "flex-start",
-    },
-    statusText: {
-        color: COLORS.success,
-        fontWeight: "bold",
-        fontSize: 12,
-    },
-    centerContainer: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    emptyState: {
-        alignItems: "center",
-        marginTop: 50,
-    },
-    emptyText: {
-        color: COLORS.gray,
-        fontSize: 16,
-        marginTop: 10,
-    },
-})
+    container: { flex: 1, backgroundColor: '#F5F7FA' },
+    header: { backgroundColor: COLORS.primary || '#2196F3', padding: 20, paddingTop: 50 },
+    headerTitle: { fontSize: 24, fontWeight: "bold", color: "#FFF" },
+    headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 14 },
+    tabContainer: { flexDirection: "row", backgroundColor: "#FFF", elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 },
+    tab: { flex: 1, paddingVertical: 15, alignItems: "center" },
+    activeTab: { borderBottomWidth: 3, borderBottomColor: '#2196F3' },
+    tabText: { fontSize: 14, color: "#999", fontWeight: "bold" },
+    activeTabText: { color: "#2196F3" },
+    card: { backgroundColor: "#FFF", borderRadius: 16, padding: 16, marginBottom: 16, elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8 },
+    center: { flex: 1, justifyContent: "center", alignItems: "center" }
+});
 
-export default InspectionsListScreen
+export default InspectionsListScreen;

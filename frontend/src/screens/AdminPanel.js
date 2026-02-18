@@ -8,14 +8,24 @@ import DateTimePicker from "@react-native-community/datetimepicker"
 import { COLORS } from "../constants/colors"
 import api from "../services/api"
 
-const AdminPanel = () => {
-  const [activeTab, setActiveTab] = useState("assignments")
+const AdminPanel = ({ route }) => {
+  const [activeTab, setActiveTab] = useState(route?.params?.initialTab || "assignments")
   const [users, setUsers] = useState([])
   const [schools, setSchools] = useState([])
   const [assignments, setAssignments] = useState([])
   const [questions, setQuestions] = useState([])
   const [showAssignmentModal, setShowAssignmentModal] = useState(false)
   const [showQuestionModal, setShowQuestionModal] = useState(false)
+  const [showUserModal, setShowUserModal] = useState(false)
+
+  const [userData, setUserData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "beo",
+    department: "education",
+    phone: ""
+  })
 
   // Date Picker State
   const [showDatePicker, setShowDatePicker] = useState(false)
@@ -125,6 +135,44 @@ const AdminPanel = () => {
       console.error("Error creating assignment:", error)
       Alert.alert("Error", "Failed to create assignment")
     }
+  }
+
+  const createUser = async () => {
+    if (!userData.name || !userData.email || !userData.password || !userData.role) {
+      Alert.alert("Error", "Please fill required fields (Name, Email, Password, Role)")
+      return
+    }
+
+    try {
+      await api.post("/auth/register", userData)
+      Alert.alert("Success", "User created successfully")
+      setShowUserModal(false)
+      fetchUsers()
+      setUserData({ name: "", email: "", password: "", role: "beo", department: "education", phone: "" })
+    } catch (error) {
+      console.error("Error creating user:", error)
+      Alert.alert("Error", "Failed to create user. Email might be duplicat.")
+    }
+  }
+
+  const deleteUser = async (userId) => {
+    Alert.alert("Delete User", "Are you sure you want to delete this user?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api.delete(`/users/${userId}`)
+            Alert.alert("Success", "User deleted successfully")
+            fetchUsers()
+          } catch (error) {
+            console.error("Error deleting user:", error)
+            Alert.alert("Error", "Failed to delete user")
+          }
+        },
+      },
+    ])
   }
 
   const addQuestion = async () => {
@@ -393,6 +441,49 @@ const AdminPanel = () => {
     </View>
   )
 
+  const renderUsers = () => (
+    <View style={styles.tabContent}>
+      <TouchableOpacity style={styles.addButton} onPress={() => setShowUserModal(true)}>
+        <Ionicons name="person-add" size={20} color={COLORS.white} />
+        <Text style={styles.addButtonText}>Add New User</Text>
+      </TouchableOpacity>
+
+      <ScrollView style={styles.assignmentsList}>
+        {users.map((user, index) => (
+          <View key={user._id || user.uid || index} style={styles.assignmentCard}>
+            <View style={styles.cardHeader}>
+              <View>
+                <Text style={styles.assignmentTitle}>{user.name}</Text>
+                <Text style={{ fontSize: 12, color: COLORS.gray }}>{user.department?.toUpperCase()}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={[styles.deleteAssignmentButton, { marginRight: 10 }]}
+                  onPress={() => deleteUser(user._id || user.uid)}
+                >
+                  <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+                </TouchableOpacity>
+                <View style={[styles.statusBadge, { backgroundColor: COLORS.secondary }]}>
+                  <Text style={styles.statusText}>{user.role.toUpperCase()}</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.assignmentDetails}>
+              <View style={styles.detailRow}>
+                <Ionicons name="mail-outline" size={16} color={COLORS.gray} />
+                <Text style={styles.detailText}>{user.email}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Ionicons name="call-outline" size={16} color={COLORS.gray} />
+                <Text style={styles.detailText}>{user.phone || "No Phone"}</Text>
+              </View>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  )
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -406,6 +497,12 @@ const AdminPanel = () => {
           onPress={() => setActiveTab("assignments")}
         >
           <Text style={[styles.tabText, activeTab === "assignments" && styles.activeTabText]}>Assignments</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "users" && styles.activeTab]}
+          onPress={() => setActiveTab("users")}
+        >
+          <Text style={[styles.tabText, activeTab === "users" && styles.activeTabText]}>Users</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === "schools" && styles.activeTab]}
@@ -422,6 +519,8 @@ const AdminPanel = () => {
       </View>
 
       {activeTab === "assignments" && renderAssignments()}
+      {activeTab === "users" && renderUsers()}
+      {activeTab === "schools" && renderSchools()}
       {activeTab === "schools" && renderSchools()}
       {activeTab === "questions" && renderQuestions()}
 
@@ -611,6 +710,64 @@ const AdminPanel = () => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.createButton} onPress={addQuestion}>
                 <Text style={styles.createButtonText}>Add Question</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* User Modal */}
+      <Modal visible={showUserModal} animationType="slide" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add New User</Text>
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Name *</Text>
+                <TextInput style={styles.textInput} value={userData.name} onChangeText={t => setUserData({ ...userData, name: t })} placeholder="John Doe" />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email *</Text>
+                <TextInput style={styles.textInput} value={userData.email} onChangeText={t => setUserData({ ...userData, email: t })} placeholder="email@example.com" autoCapitalize="none" />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Password *</Text>
+                <TextInput style={styles.textInput} value={userData.password} onChangeText={t => setUserData({ ...userData, password: t })} placeholder="******" secureTextEntry />
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Role *</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker selectedValue={userData.role} onValueChange={v => setUserData({ ...userData, role: v })}>
+                    <Picker.Item label="BEO" value="beo" />
+                    <Picker.Item label="CEO" value="ceo" />
+                    <Picker.Item label="DEO" value="deo" />
+                    <Picker.Item label="Admin" value="admin" />
+                    <Picker.Item label="Headmaster" value="headmaster" />
+                  </Picker>
+                </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Department *</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker selectedValue={userData.department} onValueChange={v => setUserData({ ...userData, department: v })}>
+                    <Picker.Item label="Education" value="education" />
+                    <Picker.Item label="Health" value="health" />
+                    <Picker.Item label="Food" value="food" />
+                    <Picker.Item label="Construction" value="construction" />
+                  </Picker>
+                </View>
+              </View>
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Phone</Text>
+                <TextInput style={styles.textInput} value={userData.phone} onChangeText={t => setUserData({ ...userData, phone: t })} placeholder="1234567890" keyboardType="phone-pad" />
+              </View>
+            </ScrollView>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setShowUserModal(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.createButton} onPress={createUser}>
+                <Text style={styles.createButtonText}>Create User</Text>
               </TouchableOpacity>
             </View>
           </View>

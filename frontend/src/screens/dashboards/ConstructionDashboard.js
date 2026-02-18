@@ -94,7 +94,7 @@ const ConstructionDashboard = ({ userData }) => {
       <Text style={styles.sectionTitle}>Assigned Construction Sites</Text>
 
       {assignments.map((assignment) => (
-        <Card key={assignment.id} style={styles.assignmentCard}>
+        <Card key={assignment._id || assignment.id} style={styles.assignmentCard}>
           <Card.Content>
             <View style={styles.cardHeader}>
               <Title style={styles.siteName}>{assignment.locationName}</Title>

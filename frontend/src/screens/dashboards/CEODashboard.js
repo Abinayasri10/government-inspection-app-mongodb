@@ -219,7 +219,7 @@ const CEODashboard = ({ userData }) => {
       <Text style={styles.sectionTitle}>📋 DEO Approved Reports</Text>
 
       {filteredReports.map((report) => (
-        <Card key={report.id} style={styles.reportCard}>
+        <Card key={report._id || report.id} style={styles.reportCard}>
           <Card.Content>
             <View style={styles.cardHeader}>
               <View style={styles.reportInfo}>
@@ -468,8 +468,9 @@ const styles = StyleSheet.create({
   reportCard: {
     marginHorizontal: 20,
     marginBottom: 15,
-    borderRadius: 12,
-    elevation: 3,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: "row",

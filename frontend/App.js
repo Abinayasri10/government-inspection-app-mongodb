@@ -30,7 +30,7 @@ export default function App() {
     <PaperProvider theme={theme}>
       <AuthProvider>
         <NavigationContainer>
-          <StatusBar style="light" backgroundColor={COLORS.primary} />
+          <StatusBar style="light" />
           <Stack.Navigator
             initialRouteName="Welcome"
             screenOptions={{

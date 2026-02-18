@@ -7,10 +7,21 @@ const auth = require('../middleware/authMiddleware');
 // Get all assignments with filtering
 router.get('/', auth, async (req, res) => {
     try {
+        const mongoose = require('mongoose');
         const query = {};
-        if (req.query.assignedTo) query.assignedTo = req.query.assignedTo;
+        if (req.query.assignedTo) {
+            if (mongoose.Types.ObjectId.isValid(req.query.assignedTo)) {
+                query.assignedTo = req.query.assignedTo;
+            } else {
+                return res.json([]);
+            }
+        }
         if (req.query.department) query.department = req.query.department;
-        if (req.query.schoolId) query.schoolId = req.query.schoolId;
+        if (req.query.schoolId) {
+            if (mongoose.Types.ObjectId.isValid(req.query.schoolId)) {
+                query.schoolId = req.query.schoolId;
+            }
+        }
         if (req.query.status) query.status = req.query.status;
 
         const assignments = await Assignment.find(query)

@@ -33,16 +33,18 @@ const DEODashboard = ({ userData }) => {
 
   const fetchReports = async () => {
     try {
-      const response = await api.get("/inspections?forwardedTo=deo&department=education")
+      const response = await api.get("/inspections?department=education")
       const reportsList = response.data
 
       let pending = 0,
         completed = 0
 
       reportsList.forEach((data) => {
+        // Count as completed if DEO has taken action
         if (data.deoStatus === "approved" || data.deoStatus === "rejected") {
           completed++
-        } else {
+        } else if (data.forwardedTo === 'deo') {
+          // Count as pending only if it is currently forwarded to DEO
           pending++
         }
       })
@@ -51,7 +53,7 @@ const DEODashboard = ({ userData }) => {
       setStats({
         pending,
         completed,
-        total: reportsList.length,
+        total: pending + completed,
       })
     } catch (error) {
       console.error("Error fetching reports:", error)
@@ -62,9 +64,19 @@ const DEODashboard = ({ userData }) => {
   const filterReports = () => {
     let filtered = reports
     if (filter === "pending") {
-      filtered = reports.filter((report) => !report.deoStatus || report.deoStatus === "pending")
+      filtered = reports.filter((report) => report.forwardedTo === 'deo' && (!report.deoStatus || report.deoStatus === "pending"))
     } else if (filter === "completed") {
       filtered = reports.filter((report) => report.deoStatus === "approved" || report.deoStatus === "rejected")
+    } else {
+      // For 'all', we probably want to see both pending and completed, but exclude others?
+      // Or show everything fetched? 
+      // Current fetch gets ALL education reports. 
+      // We should probably show only those relevant to DEO (either pending for DEO or processed by DEO)
+      filtered = reports.filter(report =>
+        report.forwardedTo === 'deo' ||
+        report.deoStatus === 'approved' ||
+        report.deoStatus === 'rejected'
+      )
     }
     setFilteredReports(filtered)
   }
@@ -98,7 +110,8 @@ const DEODashboard = ({ userData }) => {
         forwardedTo: reportDecision === "approved" ? "ceo" : null,
       }
 
-      await api.put(`/inspections/${selectedReport.id || selectedReport._id}`, updateData)
+      const reportId = selectedReport._id || selectedReport.id;
+      await api.put(`/inspections/${reportId}`, updateData)
 
       Alert.alert(
         "Success",
@@ -132,8 +145,35 @@ const DEODashboard = ({ userData }) => {
         return "APPROVED"
       case "rejected":
         return "REJECTED"
+      case "reschedule_requested":
+        return "RESCHEDULE REQ"
       default:
         return "PENDING REVIEW"
+    }
+  }
+
+  const getAiFlagColor = (flag) => {
+    switch (flag) {
+      case "Green": return COLORS.success;
+      case "Yellow": return COLORS.warning;
+      case "Red": return COLORS.error;
+      default: return COLORS.gray;
+    }
+  }
+
+  const handleRescheduleRequest = async () => {
+    if (!selectedReport) return;
+    try {
+      const reportId = selectedReport._id || selectedReport.id;
+      await api.put(`/inspections/${reportId}`, {
+        deoStatus: 'reschedule_requested',
+        remarks: 'Reschedule requested by DEO based on AI Analysis.'
+      });
+      Alert.alert("Success", "Reschedule request sent to Admin.");
+      setShowReportModal(false);
+      fetchReports();
+    } catch (err) {
+      Alert.alert("Error", "Failed to send request.");
     }
   }
 
@@ -195,7 +235,7 @@ const DEODashboard = ({ userData }) => {
       <Text style={styles.sectionTitle}>📋 BEO Reports for Review</Text>
 
       {filteredReports.map((report) => (
-        <Card key={report.id} style={styles.reportCard}>
+        <Card key={report._id || report.id} style={styles.reportCard}>
           <Card.Content>
             <View style={styles.cardHeader}>
               <View style={styles.reportInfo}>
@@ -203,8 +243,15 @@ const DEODashboard = ({ userData }) => {
                 <Text style={styles.beoName}>Submitted by: {report.userName}</Text>
                 <Text style={styles.submissionDate}>{new Date(report.submittedAt).toLocaleDateString("en-IN")}</Text>
               </View>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(report.deoStatus) }]}>
-                <Text style={styles.statusText}>{getStatusText(report.deoStatus)}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(report.deoStatus), marginBottom: 5 }]}>
+                  <Text style={styles.statusText}>{getStatusText(report.deoStatus)}</Text>
+                </View>
+                {report.aiAnalysis && (
+                  <View style={[styles.statusBadge, { backgroundColor: getAiFlagColor(report.aiAnalysis.flag) }]}>
+                    <Text style={styles.statusText}>AI: {report.aiAnalysis.flag.toUpperCase()}</Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -306,6 +353,34 @@ const DEODashboard = ({ userData }) => {
                 <Text style={styles.reportField}>BEO: {selectedReport.userName}</Text>
                 <Text style={styles.reportField}>Date: {new Date(selectedReport.submittedAt).toLocaleString()}</Text>
               </View>
+
+              {selectedReport.aiAnalysis && (
+                <View style={[styles.reportSection, { borderColor: getAiFlagColor(selectedReport.aiAnalysis.flag), borderWidth: 1 }]}>
+                  <Text style={[styles.reportSectionTitle, { color: getAiFlagColor(selectedReport.aiAnalysis.flag) }]}>
+                    AI Analysis Result: {selectedReport.aiAnalysis.flag} Flag
+                  </Text>
+
+                  {selectedReport.aiAnalysis.issues && selectedReport.aiAnalysis.issues.length > 0 ? (
+                    <View>
+                      <Text style={[styles.reportField, { fontWeight: 'bold', color: COLORS.error }]}>Issues Detected:</Text>
+                      {selectedReport.aiAnalysis.issues.map((issue, idx) => (
+                        <Text key={idx} style={styles.reportField}>• {issue}</Text>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={[styles.reportField, { color: COLORS.success }]}>No issues detected. Report looks good.</Text>
+                  )}
+
+                  {selectedReport.aiAnalysis.summary && selectedReport.aiAnalysis.summary.length > 0 && (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={[styles.reportField, { fontWeight: 'bold' }]}>Summary:</Text>
+                      {selectedReport.aiAnalysis.summary.map((line, idx) => (
+                        <Text key={idx} style={styles.reportField}>• {line}</Text>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
             </ScrollView>
           )}
 
@@ -314,9 +389,19 @@ const DEODashboard = ({ userData }) => {
               <TouchableOpacity style={styles.modalApproveButton} onPress={() => handleReportDecision("approved")}>
                 <Text style={styles.modalApproveText}>Approve & Forward to CEO</Text>
               </TouchableOpacity>
+
               <TouchableOpacity style={styles.modalRejectButton} onPress={() => handleReportDecision("rejected")}>
                 <Text style={styles.modalRejectText}>Reject & Send Back</Text>
               </TouchableOpacity>
+
+              {selectedReport.aiAnalysis && (selectedReport.aiAnalysis.flag === 'Red' || selectedReport.aiAnalysis.flag === 'Yellow') && (
+                <TouchableOpacity
+                  style={[styles.modalRejectButton, { backgroundColor: COLORS.warning, marginTop: 10 }]}
+                  onPress={handleRescheduleRequest}
+                >
+                  <Text style={styles.modalRejectText}>Request Reschedule (Admin)</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -471,14 +556,15 @@ const styles = StyleSheet.create({
   reportCard: {
     marginHorizontal: 20,
     marginBottom: 15,
-    borderRadius: 12,
-    elevation: 3,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    elevation: 4,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 15,
+    marginBottom: 10,
   },
   reportInfo: {
     flex: 1,
@@ -528,13 +614,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     padding: 10,
     marginBottom: 10,
   },
   viewButtonText: {
-    color: COLORS.primary,
+    color: COLORS.white,
     fontWeight: "bold",
     marginLeft: 5,
   },

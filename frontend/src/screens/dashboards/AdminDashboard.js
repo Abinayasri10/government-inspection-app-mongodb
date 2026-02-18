@@ -39,7 +39,9 @@ const AdminDashboard = ({ userData, navigation }) => {
       let completedInspections = 0
 
       inspections.forEach((insp) => {
-        if (insp.status === "completed") {
+        // Consider approved, rejected, or completed status as 'completed'
+        if (['approved', 'rejected', 'completed'].includes(insp.status) ||
+          ['approved', 'rejected'].includes(insp.deoStatus)) {
           completedInspections++
         } else {
           pendingInspections++
@@ -72,25 +74,25 @@ const AdminDashboard = ({ userData, navigation }) => {
       title: "Create Assignment",
       icon: "add-circle-outline",
       color: COLORS.primary,
-      action: () => navigation.navigate("AdminPanel"),
+      action: () => navigation.navigate("AdminPanel", { initialTab: 'assignments' }),
     },
     {
-      title: "View Users",
+      title: "Manage Users",
       icon: "people-outline",
       color: COLORS.secondary,
-      action: () => navigation.navigate("AdminPanel"),
+      action: () => navigation.navigate("AdminPanel", { initialTab: 'users' }),
     },
     {
       title: "Reports",
       icon: "document-text-outline",
       color: COLORS.accent,
-      action: () => Alert.alert("Coming Soon", "Reports feature will be available soon"),
+      action: () => navigation.navigate("Reports"),
     },
     {
       title: "Settings",
       icon: "settings-outline",
       color: COLORS.warning,
-      action: () => Alert.alert("Coming Soon", "Settings feature will be available soon"),
+      action: () => navigation.navigate("AdminPanel", { initialTab: 'users' }),
     },
   ]
 
@@ -137,8 +139,8 @@ const AdminDashboard = ({ userData, navigation }) => {
       </View>
 
       <Text style={styles.sectionTitle}>Recent Activity</Text>
-      {recentActivity.map((activity) => (
-        <Card key={activity.id} style={styles.activityCard}>
+      {recentActivity.map((activity, idx) => (
+        <Card key={activity._id || activity.id || idx} style={styles.activityCard}>
           <Card.Content>
             <View style={styles.activityHeader}>
               <Title style={styles.activityTitle}>Inspection Submitted</Title>
@@ -150,8 +152,10 @@ const AdminDashboard = ({ userData, navigation }) => {
               {activity.userName} submitted inspection for {activity.department} department
             </Paragraph>
             <View style={styles.activityStatus}>
-              <View style={[styles.statusBadge, { backgroundColor: COLORS.success }]}>
-                <Text style={styles.statusText}>SUBMITTED</Text>
+              <View style={[styles.statusBadge, { backgroundColor: activity.deoStatus === 'reschedule_requested' ? COLORS.warning : COLORS.success }]}>
+                <Text style={styles.statusText}>
+                  {activity.deoStatus === 'reschedule_requested' ? 'RESCHEDULE REQ' : (activity.status || 'SUBMITTED').toUpperCase()}
+                </Text>
               </View>
             </View>
           </Card.Content>
@@ -261,8 +265,10 @@ const styles = StyleSheet.create({
   },
   activityCard: {
     marginHorizontal: 20,
-    marginBottom: 10,
-    borderRadius: 12,
+    marginBottom: 15,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    elevation: 4,
   },
   activityHeader: {
     flexDirection: "row",

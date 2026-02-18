@@ -123,8 +123,9 @@ const HealthCareDashboard = ({ userData, navigation, route }) => {
 
   const downloadReport = async (report) => {
     try {
-      console.log("Starting download for healthcare report:", report.id)
-      setDownloadingReport(report.id)
+      const reportId = report._id || report.id;
+      console.log("Starting download for healthcare report:", reportId)
+      setDownloadingReport(reportId)
 
       // Generate PDF from the inspection data
       const pdfResult = await PDFGenerator.generatePDF(report)
@@ -195,7 +196,7 @@ const HealthCareDashboard = ({ userData, navigation, route }) => {
       <Text style={styles.sectionTitle}>🏥 Assigned Healthcare Facilities</Text>
 
       {assignments.map((assignment) => (
-        <Card key={assignment.id} style={styles.assignmentCard}>
+        <Card key={assignment._id || assignment.id} style={styles.assignmentCard}>
           <Card.Content>
             <View style={styles.cardHeader}>
               <View style={styles.facilityInfo}>
@@ -277,14 +278,14 @@ const HealthCareDashboard = ({ userData, navigation, route }) => {
         <>
           <Text style={styles.sectionTitle}>📄 Completed Reports</Text>
           {completedReports.slice(0, 5).map((report) => (
-            <Card key={report.id} style={styles.reportCard}>
+            <Card key={report._id || report.id} style={styles.reportCard}>
               <Card.Content>
                 <View style={styles.reportHeader}>
                   <View style={styles.reportTitleContainer}>
                     <Text style={styles.reportTitle}>{report.facilityName}</Text>
                     <Text style={styles.reportDate}>{new Date(report.submittedAt).toLocaleDateString("en-IN")}</Text>
                   </View>
-                  <Text style={styles.reportId}>ID: {report.id.substring(0, 8)}</Text>
+                  <Text style={styles.reportId}>ID: {(report._id || report.id).substring(0, 8)}</Text>
                 </View>
 
                 <View style={styles.reportDetails}>
@@ -303,11 +304,11 @@ const HealthCareDashboard = ({ userData, navigation, route }) => {
                     <Text style={styles.statusText}>SUBMITTED TO CMO</Text>
                   </View>
                   <TouchableOpacity
-                    style={[styles.downloadButton, downloadingReport === report.id && styles.downloadingButton]}
+                    style={[styles.downloadButton, downloadingReport === (report._id || report.id) && styles.downloadingButton]}
                     onPress={() => downloadReport(report)}
-                    disabled={downloadingReport === report.id}
+                    disabled={downloadingReport === (report._id || report.id)}
                   >
-                    {downloadingReport === report.id ? (
+                    {downloadingReport === (report._id || report.id) ? (
                       <>
                         <Ionicons name="hourglass-outline" size={16} color={COLORS.primary} />
                         <Text style={styles.downloadText}>Downloading...</Text>
