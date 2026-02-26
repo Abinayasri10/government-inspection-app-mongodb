@@ -3,12 +3,21 @@ const router = express.Router();
 const auth = require('../middleware/authMiddleware');
 const nodemailer = require('nodemailer');
 const EmailLog = require('../models/EmailLog');
+const dns = require('dns');
+
+// Force DNS to use IPv4 first to prevent ENETUNREACH on IPv6 (Common with Gmail/Render)
+try {
+    dns.setDefaultResultOrder('ipv4first');
+} catch (e) {
+    console.warn('dns.setDefaultResultOrder not supported in this Node version');
+}
 
 // Email Transporter Configuration
 const transporter = nodemailer.createTransport({
+    service: 'gmail',
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT || '587'),
-    secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
+    port: parseInt(process.env.EMAIL_PORT || '465'),
+    secure: true, // use true for 465
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
