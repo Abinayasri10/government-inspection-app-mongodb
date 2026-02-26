@@ -13,10 +13,9 @@ const transporter = nodemailer.createTransport({
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
-    // Add these tls options to help with connection issues
+    // Ensure standard TLS connection
     tls: {
-        rejectUnauthorized: false, // Helps with self-signed certs or some proxy issues, use with caution in strict prod
-        ciphers: 'SSLv3'
+        rejectUnauthorized: false // Helps with self-signed certs or some proxy issues
     }
 });
 
