@@ -4,29 +4,8 @@ const auth = require('../middleware/authMiddleware');
 const nodemailer = require('nodemailer');
 const EmailLog = require('../models/EmailLog');
 const dns = require('dns');
-
-// Force DNS to use IPv4 first to prevent ENETUNREACH on IPv6 (Common with Gmail/Render)
-try {
-    dns.setDefaultResultOrder('ipv4first');
-} catch (e) {
-    console.warn('dns.setDefaultResultOrder not supported in this Node version');
-}
-
-// Email Transporter Configuration
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT || '465'),
-    secure: true, // use true for 465
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    // Ensure standard TLS connection
-    tls: {
-        rejectUnauthorized: false // Helps with self-signed certs or some proxy issues
-    }
-});
+const util = require('util');
+const resolve4 = util.promisify(dns.resolve4);
 
 // Send Email via Nodemailer (MongoDB Compatible logging)
 router.post('/send', auth, async (req, res) => {
@@ -37,6 +16,32 @@ router.post('/send', auth, async (req, res) => {
             console.warn('Email credentials missing in .env');
             return res.status(500).json({ msg: 'Email configuration missing' });
         }
+
+        let hostIp = 'smtp.gmail.com'; // Fallback
+        try {
+            // Force resolve IPv4 address to bypass ENETUNREACH IPv6 issue
+            const ips = await resolve4('smtp.gmail.com');
+            if (ips && ips.length > 0) {
+                hostIp = ips[0];
+            }
+        } catch (e) {
+            console.warn('Failed to resolve IPv4 for smtp.gmail.com', e);
+        }
+
+        // Dynamically create transporter with strictly IPv4 Address
+        const transporter = nodemailer.createTransport({
+            host: hostIp,
+            port: parseInt(process.env.EMAIL_PORT || '465'),
+            secure: true, // true for port 465
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            },
+            tls: {
+                servername: 'smtp.gmail.com', // Vital for trusting the SSL cert when connecting via raw IP
+                rejectUnauthorized: false
+            }
+        });
 
         const mailOptions = {
             from: process.env.EMAIL_FROM || '"Government Inspection System" <noreply@gov.in>',
