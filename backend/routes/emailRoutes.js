@@ -29,10 +29,11 @@ router.post('/send', auth, async (req, res) => {
         }
 
         // Dynamically create transporter with strictly IPv4 Address
+        const emailPort = parseInt(process.env.EMAIL_PORT || '587');
         const transporter = nodemailer.createTransport({
             host: hostIp,
-            port: parseInt(process.env.EMAIL_PORT || '465'),
-            secure: true, // true for port 465
+            port: emailPort,
+            secure: emailPort === 465, // true for 465, false for 587
             connectionTimeout: 5000, // Fail fast in 5 seconds instead of 60 seconds if blocked
             greetingTimeout: 5000,
             socketTimeout: 5000,
